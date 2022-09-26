@@ -51,8 +51,8 @@ flag|v|verbose|also show debug messages
 flag|f|force|do not ask for confirmation (always yes)
 option|l|log_dir|folder for log files |$HOME/log/$script_prefix
 option|t|tmp_dir|folder for temp files|/tmp/$script_prefix
-choice|1|action|action to perform|action1,action2,check,env,update
-#param|?|input|input file/text
+choice|1|action|action to perform|c,co,composer,r,run,check,update,env
+param|n|input|input file/text
 " grep -v -e '^#' -e '^\s*$'
 }
 
@@ -67,16 +67,23 @@ Script:main() {
 
   action=$(Str:lower "$action")
   case $action in
-  action1)
-    #TIP: use «$script_prefix action1» to ...
-    #TIP:> $script_prefix action1
-    do_action1
+  c|co|composer)
+    #TIP: use «$script_prefix co» to run 'composer' with the optimal PHP version
+    #TIP:> $script_prefix co install
+    PHPBIN="$(choose_php)"
+    IO:debug "PHP binary: $PHPBIN"
+    IO:success "PHP version: $(php_version "$PHPBIN")"
+    COMPBIN="$(which composer)"
+    "$PHPBIN" "$COMPBIN" "${input[@]}"
     ;;
 
-  action2)
-    #TIP: use «$script_prefix action2» to ...
-    #TIP:> $script_prefix action2
-    do_action2
+  r|run)
+    #TIP: use «$script_prefix run» to run 'php artisan' with the optimal PHP version
+    #TIP:> $script_prefix run make:model -v Test
+    PHPBIN="$(choose_php)"
+    IO:debug "PHP binary: $PHPBIN"
+    IO:debug "PHP version: $(php_version "$PHPBIN")"
+    "$PHPBIN" artisan "${input[@]}"
     ;;
 
   check | env)
@@ -96,7 +103,7 @@ Script:main() {
     ;;
 
   *)
-    IO:die "action [$action] not recognized"
+    IO:die "[$action] is not an allowed action"
     ;;
   esac
   IO:log "[$script_basename] ended after $SECONDS secs"
@@ -108,7 +115,28 @@ Script:main() {
 ## Put your helper scripts here
 #####################################################################
 
-do_action1() {
+function choose_php(){
+  IO:debug "Find the optimal PHP version"
+  COMPOSER_JSON=""
+  [[ -f "../composer.json" ]] && COMPOSER_JSON="../composer.json"
+  [[ -f "composer.json" ]] && COMPOSER_JSON="composer.json"
+  [[ -z "$COMPOSER_JSON" ]] && echo php && return 0
+  IO:debug "using $COMPOSER_JSON"
+  #  "php": "^7.4|^8.0",
+  grep '"php":' "$COMPOSER_JSON" \
+   | cut -d: -f2 \
+   | tr -d '", ^' \
+   | tr '|' "\n" \
+   | cut -d. -f1-2 \
+   | sort -u \
+   | while read -r version ; do
+      IO:debug "Checking php$version..."
+      [[ -n "$(which "php$version")" ]] && which "php$version" && return 0
+     done
+    #    "php": "^7.4|^8.0",
+}
+
+function do_action1() {
   IO:log "action1"
   # Examples of required binaries/scripts and how to install them
   # Os:require "ffmpeg"
@@ -117,10 +145,14 @@ do_action1() {
   # (code)
 }
 
-do_action2() {
+function do_action2() {
   IO:log "action2"
   # (code)
 
+}
+
+function php_version(){
+  "${1:-php}" -v | head -1 | cut -d\( -f1
 }
 
 #####################################################################
