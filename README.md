@@ -13,19 +13,19 @@ php artisan replacement
 ## 🔥 Usage
 
 ```
-Program: pa 0.0.1 by peter@forret.com
-Updated: 2022-09-26
-Description: php artisan replacement
-Usage: normal.sh [-h] [-q] [-v] [-f] [-l <log_dir>] [-t <tmp_dir>] <action> <input?>
+Program : pa  by peter@forret.com
+Version : v0.0.3 (2022-09-26 20:04)
+Purpose : php artisan replacement
+Usage   : pa [-h] [-q] [-v] [-f] [-l <log_dir>] [-t <tmp_dir>] <action> <input …>
 Flags, options and parameters:
     -h|--help        : [flag] show usage [default: off]
     -q|--quiet       : [flag] no output [default: off]
-    -v|--verbose     : [flag] output more [default: off]
+    -v|--verbose     : [flag] also show debug messages [default: off]
     -f|--force       : [flag] do not ask for confirmation (always yes) [default: off]
-    -l|--log_dir <?> : [option] folder for log files   [default: /Users/pforret/log/normal]
-    -t|--tmp_dir <?> : [option] folder for temp files  [default: .tmp]
-    <action>         : [parameter] action to perform: analyze/convert
-    <input>          : [parameter] input file/text (optional)
+    -l|--log_dir <?> : [option] folder for log files   [default: /home/pforret/log/pa]
+    -t|--tmp_dir <?> : [option] folder for temp files  [default: /tmp/pa]
+    <action>         : [choice] action to perform  [options: c,co,composer,r,run,check,update,env]
+    <input>          : [parameters] input file/text (1 or more)
 ```
 
 ## ⚡️ Examples
