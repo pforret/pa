@@ -31,8 +31,9 @@ Flags, options and parameters:
 ## ⚡️ Examples
 
 ```bash
-> pa .
-# start PhpStorm with current folder as project
+> pa co install
+> pa config install
+# run composer install, with the correct PHP version
 ```
 
 ## 🚀 Installation
