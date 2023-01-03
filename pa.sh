@@ -72,36 +72,35 @@ Script:main() {
     #TIP: use «$script_prefix versions» to show the available PHP versions on this machine
     #TIP:> $script_prefix versions
     IO:print "# Installed on this machine $(hostname):"
-    IO:print "# -------------------------"
-    list_php
+    IO:print "# - - - - - - - - - - - - - - - - - - - - -"
+    action_versions
     ;;
 
   c|co|com|comp|composer)
     #TIP: use «$script_prefix install» to run 'php artisan' with the optimal PHP version
     #TIP:> $script_prefix run make:model -v Test
-    PHPBIN="$(choose_php)"
+    PHP_BIN="$(choose_php)"
     COMPBIN=$(command -v composer)
-    IO:debug "PHP binary:      $PHPBIN -- $(php_version "$PHPBIN")"
+    IO:debug "PHP binary:      $PHP_BIN -- $(php_version "$PHP_BIN")"
     IO:debug "Composer binary: $COMPBIN -- $("$COMPBIN" --version | head -1)"
-    echo "$PHPBIN" "$COMPBIN"
-    ;;
-
-  check | env)
-    ## leave this default action, it will make it easier to test your script
-    #TIP: use «$script_prefix check» to check if this script is ready to execute and what values the options/flags are
-    #TIP:> $script_prefix check
-    #TIP: use «$script_prefix env» to generate an example .env file
-    #TIP:> $script_prefix env > .env
-    Script:check
+    echo "$PHP_BIN" "$COMPBIN"
     ;;
 
   *)
-    IO:die "[$action] is not an allowed action"
+    # just pass it to php artisan
+    if [[ ! -f artisan ]] ; then
+      IO:alert "Current folder  = $(pwd)"
+      git status > /dev/null && IO:alert "Repository root = $(git rev-parse --show-toplevel)"
+      IO:die "No 'artisan' script present, are you in the root of a Laravel project?"
+    fi
+    PHP_BIN="$(choose_php)"
+    IO:debug "Used PHP binary = $PHP_BIN"
+    "$PHP_BIN" artisan "$@"
+
     ;;
   esac
   IO:log "[$script_basename] ended after $SECONDS secs"
   #TIP: >>> bash script created with «pforret/bashew»
-  #TIP: >>> for bash development, also check IO:print «pforret/setver» and «pforret/IO:progressbar»
 }
 
 #####################################################################
@@ -109,12 +108,38 @@ Script:main() {
 #####################################################################
 
 function choose_php(){
-  IO:debug "Find the optimal PHP version"
-  COMPOSER_JSON=""
-  [[ -f "../composer.json" ]] && COMPOSER_JSON="../composer.json"
-  [[ -f "composer.json" ]] && COMPOSER_JSON="composer.json"
-  [[ -z "$COMPOSER_JSON" ]] && echo php && return 0
-  IO:debug "using $COMPOSER_JSON"
+  Os:require jq
+  IO:debug "Find PHP binary to use"
+  # first check override PHP
+  if [[ -n "$OVERRIDE_PHP" ]] ; then
+    PHP_BIN=$(command -v "$OVERRIDE_PHP")
+    if [[ -n "$PHP_BIN" ]] ; then
+      IO:debug "Override: $PHP_BIN"
+      echo "$PHP_BIN" && return 0
+    fi
+  fi
+  # if no omposer.json
+  if [[ ! -f  "./composer.json" ]] ; then
+    PHP_BIN=$(command -v "php")
+    if [[ -n "$PHP_BIN" ]] ; then
+      IO:debug "No Composer: $PHP_BIN"
+      echo "$PHP_BIN" && return 0
+    fi
+  fi 
+  COMPOSER_JSON="composer.json"
+  # if composer.json has no php require statement
+  require_php=$(< "$COMPOSER_JSON" jq -r ".require.php")
+    if [[ -z "$require_php" ]] ; then
+    PHP_BIN=$(command -v "php")
+    if [[ -n "$PHP_BIN" ]] ; then
+      IO:debug "No Composer: $PHP_BIN"
+      echo "$PHP_BIN" && return 0
+    fi
+    fi
+
+  lowest_php=$(echo "$require_php" | tr '|' "\n" | sort | head -1)
+  IO:debug "Lowest required PHP: $lowest_php"
+
   #  "php": "^7.4|^8.0",
   grep '"php":' "$COMPOSER_JSON" \
    | cut -d: -f2 \
@@ -129,16 +154,28 @@ function choose_php(){
     #    "php": "^7.4|^8.0",
 }
 
-function list_php(){
+function action_versions(){
   local version
   local found_php
   local found_composer
-  for version in 8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3 5.2 5.1 5.0 ; do
-    found_php=$(command -v "php$version")
-    [[ -n "$found_php" ]] && printf "# %-25s %-15s %s\n" "$found_php" "$(php_version $found_php)" "$(php_support "$found_php")"
+
+  for binary in $(installed_php) ; do
+    printf "# %-25s %-15s %s\n" "$binary" "$(php_version "$binary")" "$(php_support "$binary")"
   done
   found_composer=$(command -v composer)
-  [[ -n "$found_composer" ]] && printf "# %-25s %-15s %s\n" "$found_composer" "$($found_composer --version | awk 'NR == 1 {gsub(/ version/,""); print}')" " "
+  [[ -n "$found_composer" ]] && printf "# %-25s %-15s %s\n" "$found_composer" "$($found_composer --version | awk 'NR == 1 {gsub(/ version/,""); print $2,$3}')" " "
+}
+
+function installed_php(){
+   local cache_versions
+   cache_versions=$tmp_dir/versions.$(date '+%Y-%m-%d').txt
+   if [[ ! -f "$cache_versions" ]] ; then
+     for version in 8.3 8.2 8.1 8.0 8 7.4 7.3 7.2 7.1 7.0 7 5.6 5.5 5.4 5.3 5.2 5.1 5.0 ; do
+       found_php=$(command -v "php$version")
+       [[ -n "$found_php" ]] && echo "$found_php;$()" >> "$cache_versions"
+     done
+   fi
+   cat "$cache_versions"
 }
 
 function php_support(){
@@ -176,24 +213,8 @@ function php_support(){
 
 }
 
-
-function do_action1() {
-  IO:log "action1"
-  # Examples of required binaries/scripts and how to install them
-  # Os:require "ffmpeg"
-  # Os:require "convert" "imagemagick"
-  # Os:require "IO:progressbar" "basher install pforret/IO:progressbar"
-  # (code)
-}
-
-function do_action2() {
-  IO:log "action2"
-  # (code)
-
-}
-
 function php_version(){
-  "${1:-php}" -v | head -1 | cut -d\( -f1
+  "${1:-php}" -v | awk 'NR == 1 { print $2 }'
 }
 
 #####################################################################
@@ -1092,7 +1113,7 @@ Os:import_env # overwrite with .env if any
 if [[ $sourced -eq 0 ]]; then
   Option:parse "$@"       # overwrite with specified options if any
   Script:initialize       # clean up folders
-  Script:main             # run Script:main program
+  Script:main "$@"        # run Script:main program
   Script:exit             # exit and clean up
 else
   # just disable the trap, don't execute Script:main
