@@ -1,0 +1,13 @@
+{
+    "name": "pforret/php8.2",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Peter Forret",
+            "email": "peter@forret.com"
+        }
+    ],
+    "require": {
+        "php":  "^8.2"
+    }
+}
