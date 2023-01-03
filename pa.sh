@@ -51,8 +51,9 @@ flag|v|verbose|also show debug messages
 flag|f|force|do not ask for confirmation (always yes)
 option|l|log_dir|folder for log files |$HOME/log/$script_prefix
 option|t|tmp_dir|folder for temp files|/tmp/$script_prefix
-choice|1|action|action to perform|c,co,composer,r,run,check,update,env
-param|n|input|input file/text
+option|P|OVERRIDE_PHP|override PHP binary to use (e.g. php8.1)
+param|1|action|action to perform
+param|?|input|input file/text
 " grep -v -e '^#' -e '^\s*$'
 }
 
@@ -67,23 +68,22 @@ Script:main() {
 
   action=$(Str:lower "$action")
   case $action in
-  c|co|composer)
-    #TIP: use «$script_prefix co» to run 'composer' with the optimal PHP version
-    #TIP:> $script_prefix co install
-    PHPBIN="$(choose_php)"
-    IO:debug "PHP binary: $PHPBIN"
-    IO:success "PHP version: $(php_version "$PHPBIN")"
-    COMPBIN="$(which composer)"
-    "$PHPBIN" "$COMPBIN" "${input[@]}"
+  versions)
+    #TIP: use «$script_prefix versions» to show the available PHP versions on this machine
+    #TIP:> $script_prefix versions
+    IO:print "# Installed on this machine $(hostname):"
+    IO:print "# -------------------------"
+    list_php
     ;;
 
-  r|run)
-    #TIP: use «$script_prefix run» to run 'php artisan' with the optimal PHP version
+  c|co|com|comp|composer)
+    #TIP: use «$script_prefix install» to run 'php artisan' with the optimal PHP version
     #TIP:> $script_prefix run make:model -v Test
     PHPBIN="$(choose_php)"
-    IO:debug "PHP binary: $PHPBIN"
-    IO:debug "PHP version: $(php_version "$PHPBIN")"
-    "$PHPBIN" artisan "${input[@]}"
+    COMPBIN=$(command -v composer)
+    IO:debug "PHP binary:      $PHPBIN -- $(php_version "$PHPBIN")"
+    IO:debug "Composer binary: $COMPBIN -- $("$COMPBIN" --version | head -1)"
+    echo "$PHPBIN" "$COMPBIN"
     ;;
 
   check | env)
@@ -93,13 +93,6 @@ Script:main() {
     #TIP: use «$script_prefix env» to generate an example .env file
     #TIP:> $script_prefix env > .env
     Script:check
-    ;;
-
-  update)
-    ## leave this default action, it will make it easier to test your script
-    #TIP: use «$script_prefix update» to update to the latest version
-    #TIP:> $script_prefix update
-    Script:git_pull
     ;;
 
   *)
@@ -135,6 +128,54 @@ function choose_php(){
      done
     #    "php": "^7.4|^8.0",
 }
+
+function list_php(){
+  local version
+  local found_php
+  local found_composer
+  for version in 8.3 8.2 8.1 8.0 7.4 7.3 7.2 7.1 7.0 5.6 5.5 5.4 5.3 5.2 5.1 5.0 ; do
+    found_php=$(command -v "php$version")
+    [[ -n "$found_php" ]] && printf "# %-25s %-15s %s\n" "$found_php" "$(php_version $found_php)" "$(php_support "$found_php")"
+  done
+  found_composer=$(command -v composer)
+  [[ -n "$found_composer" ]] && printf "# %-25s %-15s %s\n" "$found_composer" "$($found_composer --version | awk 'NR == 1 {gsub(/ version/,""); print}')" " "
+}
+
+function php_support(){
+  # https://www.php.net/supported-versions.php
+  local today
+  today=$(date "+%Y-%m-%d")
+  case "$(basename "$1")" in
+    php5.0)   support_ends="2005-09-05" ;;
+    php5.1)   support_ends="2006-08-24" ;;
+    php5.2)   support_ends="2011-01-06" ;;
+    php5.3)   support_ends="2014-08-14" ;;
+    php5.4)   support_ends="2015-09-03" ;;
+    php5.5)   support_ends="2016-07-21" ;;
+    php5.6)   support_ends="2018-12-31" ;;
+
+    php7.0)   support_ends="2019-01-10" ;;
+    php7.1)   support_ends="2019-12-01" ;;
+    php7.2)   support_ends="2020-11-30" ;;
+    php7.3)   support_ends="2021-12-06" ;;
+    php7.4)   support_ends="2022-11-28" ;;
+
+    php8.0)   support_ends="2023-11-26" ;;
+    php8.1)   support_ends="2024-11-25" ;;
+    php8.2)   support_ends="2025-12-08" ;;
+    php8.3)   support_ends="2026-11-30" ;;
+
+    *) support_ends=""
+  esac
+
+  if [[ "$today" < "$support_ends" ]] ; then
+    echo "$char_succes  Supported until $support_ends"
+  else
+    echo "$char_fail  Unsupported since $support_ends"
+  fi
+
+}
+
 
 function do_action1() {
   IO:log "action1"
