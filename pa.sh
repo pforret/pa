@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
-### ==============================================================================
-### SO HOW DO YOU PROCEED WITH YOUR SCRIPT?
-### 1. define the flags/options/parameters and defaults you need in Option:config()
-### 2. implement the different actions in Script:main() with helper functions
-### 3. implement helper functions you defined in previous step
-### ==============================================================================
-
 ### Created by Peter Forret ( pforret ) on 2022-09-26
 ### Based on https://github.com/pforret/bashew 1.18.8
-script_version="0.0.1" # if there is a VERSION.md in this script's folder, it will take priority for version number
+script_version="0.0.0" # if there is a VERSION.md in this script's folder, it will take priority for version number
 readonly script_author="peter@forret.com"
 readonly script_created="2022-09-26"
 readonly run_as_root=-1 # run_as_root: 0 = don't check anything / 1 = script MUST run as root / -1 = script MAY NOT run as root
@@ -21,29 +14,7 @@ install_package=""
 temp_files=()
 
 function Option:config() {
-  ### Change the next lines to reflect which flags/options/parameters you need
-  ### flag:   switch a flag 'on' / no value specified
-  ###     flag|<short>|<long>|<description>
-  ###     e.g. "-v" or "--verbose" for verbose output / default is always 'off'
-  ###     will be available as $<long> in the script e.g. $verbose
-  ### option: set an option / 1 value specified
-  ###     option|<short>|<long>|<description>|<default>
-  ###     e.g. "-e <extension>" or "--extension <extension>" for a file extension
-  ###     will be available a $<long> in the script e.g. $extension
-  ### list: add an list/array item / 1 value specified
-  ###     list|<short>|<long>|<description>| (default is ignored)
-  ###     e.g. "-u <user1> -u <user2>" or "--user <user1> --user <user2>"
-  ###     will be available a $<long> array in the script e.g. ${user[@]}
-  ### param:  comes after the options
-  ###     param|<type>|<long>|<description>
-  ###     <type> = 1 for single parameters - e.g. param|1|output expects 1 parameter <output>
-  ###     <type> = ? for optional parameters - e.g. param|1|output expects 1 parameter <output>
-  ###     <type> = n for list parameter    - e.g. param|n|inputs expects <input1> <input2> ... <input99>
-  ###     will be available as $<long> in the script after option/param parsing
-  ### choice:  is like a param, but when there are limited options
-  ###     choice|<type>|<long>|<description>|choice1,choice2,...
-  ###     <type> = 1 for single parameters - e.g. param|1|output expects 1 parameter <output>
-<<< "
+  grep <<<"
 #commented lines will be filtered
 flag|h|help|show usage
 flag|q|quiet|no output
@@ -52,9 +23,9 @@ flag|f|force|do not ask for confirmation (always yes)
 option|l|log_dir|folder for log files |$HOME/log/$script_prefix
 option|t|tmp_dir|folder for temp files|/tmp/$script_prefix
 option|P|OVERRIDE_PHP|override PHP binary to use (e.g. php8.1)
-param|1|action|action to perform
-param|?|input|input file/text
-" grep -v -e '^#' -e '^\s*$'
+param|1|action|action to perform (see $script_prefix -h for details)
+param|*|params|optional parameters for composer or artisan
+" -v -e '^#' -e '^\s*$'
 }
 
 #####################################################################
@@ -64,38 +35,49 @@ param|?|input|input file/text
 Script:main() {
   IO:log "[$script_basename] $script_version started"
 
-  Os:require "awk"
+  Os:require awk
+  Os:require jq
 
   action=$(Str:lower "$action")
   case $action in
-  versions)
-    #TIP: use «$script_prefix versions» to show the available PHP versions on this machine
-    #TIP:> $script_prefix versions
+  list)
+    #TIP: use «$script_prefix list» to show the available PHP versions on this machine
+    #TIP:> $script_prefix list
     IO:print "# Installed on this machine $(hostname):"
     IO:print "# - - - - - - - - - - - - - - - - - - - - -"
-    action_versions
+    list_installed_versions
     ;;
 
-  c|co|com|comp|composer)
+  pick)
+    #TIP: use «$script_prefix pick» to show the best PHP version for this machine/repo
+    #TIP:> $script_prefix pick
+    choose_php
+    ;;
+
+  c | co | com | comp | composer)
     #TIP: use «$script_prefix install» to run 'php artisan' with the optimal PHP version
     #TIP:> $script_prefix run make:model -v Test
     PHP_BIN="$(choose_php)"
     COMPBIN=$(command -v composer)
-    IO:debug "PHP binary:      $PHP_BIN -- $(php_version "$PHP_BIN")"
-    IO:debug "Composer binary: $COMPBIN -- $("$COMPBIN" --version | head -1)"
-    echo "$PHP_BIN" "$COMPBIN"
+    IO:debug "Using PHP: $PHP_BIN // Composer $COMPBIN"
+    IO:debug "$PHP_BIN $COMPBIN $(echo "${params:-}" | xargs)"
+    if [[ -n "${params:-}" ]] ; then
+      "$PHP_BIN" "$COMPBIN" "${params}"
+    else
+      "$PHP_BIN" "$COMPBIN"
+    fi
     ;;
 
   *)
     # just pass it to php artisan
-    if [[ ! -f artisan ]] ; then
+    if [[ ! -f artisan ]]; then
       IO:alert "Current folder  = $(pwd)"
-      git status > /dev/null && IO:alert "Repository root = $(git rev-parse --show-toplevel)"
-      IO:die "No 'artisan' script present, are you in the root of a Laravel project?"
+      git status >/dev/null && IO:alert "Repository root = $(git rev-parse --show-toplevel)"
+      IO:die "No 'artisan' script present, are you in the root folder of a Laravel project?"
     fi
     PHP_BIN="$(choose_php)"
-    IO:debug "Used PHP binary = $PHP_BIN"
-    "$PHP_BIN" artisan "$@"
+    IO:debug "Using PHP: $PHP_BIN"
+    "$PHP_BIN" artisan "$action" "${params:-}"
 
     ;;
   esac
@@ -107,105 +89,150 @@ Script:main() {
 ## Put your helper scripts here
 #####################################################################
 
-function choose_php(){
-  Os:require jq
+function choose_php() {
   IO:debug "Find PHP binary to use"
   # first check override PHP
-  if [[ -n "$OVERRIDE_PHP" ]] ; then
+  if [[ -n "$OVERRIDE_PHP" ]]; then
     PHP_BIN=$(command -v "$OVERRIDE_PHP")
-    if [[ -n "$PHP_BIN" ]] ; then
+    if [[ -n "$PHP_BIN" ]]; then
       IO:debug "Override: $PHP_BIN"
       echo "$PHP_BIN" && return 0
     fi
   fi
-  # if no omposer.json
-  if [[ ! -f  "./composer.json" ]] ; then
-    PHP_BIN=$(command -v "php")
-    if [[ -n "$PHP_BIN" ]] ; then
-      IO:debug "No Composer: $PHP_BIN"
-      echo "$PHP_BIN" && return 0
-    fi
-  fi 
   COMPOSER_JSON="composer.json"
-  # if composer.json has no php require statement
-  require_php=$(< "$COMPOSER_JSON" jq -r ".require.php")
-    if [[ -z "$require_php" ]] ; then
+  # if no composer.json
+  if [[ ! -f "$COMPOSER_JSON" ]]; then
     PHP_BIN=$(command -v "php")
-    if [[ -n "$PHP_BIN" ]] ; then
+    if [[ -n "$PHP_BIN" ]]; then
       IO:debug "No Composer: $PHP_BIN"
       echo "$PHP_BIN" && return 0
     fi
+  fi
+  # if composer.json has no php require statement
+  composer_php_requirement=$(jq <"$COMPOSER_JSON" -r ".require.php")
+  if [[ -z "$composer_php_requirement" ]]; then
+    PHP_BIN=$(command -v "php")
+    if [[ -n "$PHP_BIN" ]]; then
+      IO:debug "No Composer: $PHP_BIN"
+      echo "$PHP_BIN" && return 0
     fi
+  fi
 
-  lowest_php=$(echo "$require_php" | tr '|' "\n" | sort | head -1)
-  IO:debug "Lowest required PHP: $lowest_php"
+  # https://getcomposer.org/doc/articles/versions.md
+  echo "$composer_php_requirement" | tr '|' "\n" |
+    while read -r spec; do
+      case "${spec:0:1}" in
+      "^")
+        # https://getcomposer.org/doc/articles/versions.md#caret-version-range-
+        # ^1.2.3 is equivalent to >=1.2.3 <2.0.0
+        min_version=${spec:1}
+        min_decimal=$(semver2decimal "$min_version")
+        max_decimal=$((($min_decimal / 1000000 + 1) * 1000000 - 1))
+        IO:debug "Allowed: $spec : $min_decimal - $max_decimal"
+        filter_allowed_phps "$min_decimal" "$max_decimal"
+        ;;
 
-  #  "php": "^7.4|^8.0",
-  grep '"php":' "$COMPOSER_JSON" \
-   | cut -d: -f2 \
-   | tr -d '", ^' \
-   | tr '|' "\n" \
-   | cut -d. -f1-2 \
-   | sort -u \
-   | while read -r version ; do
-      IO:debug "Checking php$version..."
-      [[ -n "$(which "php$version")" ]] && which "php$version" && return 0
-     done
-    #    "php": "^7.4|^8.0",
+      "~")
+        # https://getcomposer.org/doc/articles/versions.md#tilde-version-range-
+        # ~1.2 is equivalent to >=1.2 <2.0.0, while ~1.2.3 is equivalent to >=1.2.3 <1.3.0
+        min_version=${spec:1}
+        min_decimal=$(semver2decimal "$min_version")
+        if [[ -z $(echo $min_version | cut -d. -f3) ]]; then
+          max_decimal=$(( (min_decimal / 1000000 + 1) * 1000000 -  1))
+        else
+          max_decimal=$(( (min_decimal / 1000 + 1) * 1000 - 1))
+        fi
+        IO:debug "Allowed: $spec : $min_decimal - $max_decimal"
+        filter_allowed_phps "$min_decimal" "$max_decimal"
+        ;;
+
+      *)
+        # https://getcomposer.org/doc/articles/versions.md#exact-version-constraint
+        min_version=${spec}
+        min_decimal=$(semver2decimal "$min_version")
+        if [[ -z $(echo $min_version | cut -d. -f3) ]]; then
+          max_decimal=$(( (min_decimal / 1000 + 1) * 1000))
+        else
+          max_decimal="$(( min_decimal +  1))"
+        fi
+        IO:debug "allowed: $spec : $min_decimal - $max_decimal"
+         filter_allowed_phps "$min_decimal" "$max_decimal"
+       ;;
+      esac
+    done \
+    | sort -u | head -1 | cut -d';' -f2
 }
 
-function action_versions(){
+function list_installed_versions() {
   local version
   local found_php
   local found_composer
 
-  for binary in $(installed_php) ; do
-    printf "# %-25s %-15s %s\n" "$binary" "$(php_version "$binary")" "$(php_support "$binary")"
+  for line in $(detect_installed_php_binaries); do
+    binary=$(echo "$line" | cut -d";" -f1)
+    version=$(echo "$line" | cut -d";" -f2)
+    printf "# %-25s %-15s %s\n" "$binary" "$version" "$(version_end_of_support "$version")"
   done
   found_composer=$(command -v composer)
   [[ -n "$found_composer" ]] && printf "# %-25s %-15s %s\n" "$found_composer" "$($found_composer --version | awk 'NR == 1 {gsub(/ version/,""); print $2,$3}')" " "
 }
 
-function installed_php(){
-   local cache_versions
-   cache_versions=$tmp_dir/versions.$(date '+%Y-%m-%d').txt
-   if [[ ! -f "$cache_versions" ]] ; then
-     for version in 8.3 8.2 8.1 8.0 8 7.4 7.3 7.2 7.1 7.0 7 5.6 5.5 5.4 5.3 5.2 5.1 5.0 ; do
-       found_php=$(command -v "php$version")
-       [[ -n "$found_php" ]] && echo "$found_php;$()" >> "$cache_versions"
-     done
-   fi
-   cat "$cache_versions"
+function detect_installed_php_binaries() {
+  local cache_versions
+  # this is slow, so keep a cache
+  cache_versions=$tmp_dir/versions.$(date '+%Y-%m-%d').txt
+  ((force)) && rm -f "$cache_versions"
+  if [[ ! -f "$cache_versions" ]]; then
+    for version in "" 8.3 8.2 8.1 8.0 8 7.4 7.3 7.2 7.1 7.0 7 5.6 5.5 5.4 5.3 5.2 5.1 5.0; do
+      found_php=$(command -v "php$version")
+      [[ -n "$found_php" ]] && echo "$found_php;$(detect_php_version "$found_php")" >>"$cache_versions"
+    done
+    IO:debug "Cached PHP versions in $cache_versions"
+  fi
+  cat "$cache_versions"
 }
 
-function php_support(){
+function filter_allowed_phps(){
+  local minimum="$1"
+  local maximum="$2"
+  detect_installed_php_binaries \
+  | while IFS=";" read -r php_path detect_php_version ; do
+      dec_version=$(semver2decimal "$detect_php_version")
+      [[ "$dec_version" -lt "$minimum" ]] && continue
+      [[ "$dec_version" -ge "$maximum" ]] && continue
+      echo "$dec_version;$php_path"
+    done \
+  | sort -u
+}
+
+function version_end_of_support() {
   # https://www.php.net/supported-versions.php
   local today
   today=$(date "+%Y-%m-%d")
-  case "$(basename "$1")" in
-    php5.0)   support_ends="2005-09-05" ;;
-    php5.1)   support_ends="2006-08-24" ;;
-    php5.2)   support_ends="2011-01-06" ;;
-    php5.3)   support_ends="2014-08-14" ;;
-    php5.4)   support_ends="2015-09-03" ;;
-    php5.5)   support_ends="2016-07-21" ;;
-    php5.6)   support_ends="2018-12-31" ;;
+  case "$(echo "$1" | cut -d. -f1-2)" in
+  5.0) support_ends="2005-09-05" ;;
+  5.1) support_ends="2006-08-24" ;;
+  5.2) support_ends="2011-01-06" ;;
+  5.3) support_ends="2014-08-14" ;;
+  5.4) support_ends="2015-09-03" ;;
+  5.5) support_ends="2016-07-21" ;;
+  5.6) support_ends="2018-12-31" ;;
 
-    php7.0)   support_ends="2019-01-10" ;;
-    php7.1)   support_ends="2019-12-01" ;;
-    php7.2)   support_ends="2020-11-30" ;;
-    php7.3)   support_ends="2021-12-06" ;;
-    php7.4)   support_ends="2022-11-28" ;;
+  7.0) support_ends="2019-01-10" ;;
+  7.1) support_ends="2019-12-01" ;;
+  7.2) support_ends="2020-11-30" ;;
+  7.3) support_ends="2021-12-06" ;;
+  7.4) support_ends="2022-11-28" ;;
 
-    php8.0)   support_ends="2023-11-26" ;;
-    php8.1)   support_ends="2024-11-25" ;;
-    php8.2)   support_ends="2025-12-08" ;;
-    php8.3)   support_ends="2026-11-30" ;;
+  8.0) support_ends="2023-11-26" ;;
+  8.1) support_ends="2024-11-25" ;;
+  8.2) support_ends="2025-12-08" ;;
+  8.3) support_ends="2026-11-30" ;;
 
-    *) support_ends=""
+  *) support_ends="" ;;
   esac
 
-  if [[ "$today" < "$support_ends" ]] ; then
+  if [[ "$today" < "$support_ends" ]]; then
     echo "$char_succes  Supported until $support_ends"
   else
     echo "$char_fail  Unsupported since $support_ends"
@@ -213,8 +240,22 @@ function php_support(){
 
 }
 
-function php_version(){
+function detect_php_version() {
   "${1:-php}" -v | awk 'NR == 1 { print $2 }'
+}
+
+function semver2decimal() {
+  # input: 2.3.4
+  # output: 2003004
+  echo "$1" |
+    awk -F. '{print int($1)*1000000 + int($2)*1000 + int($3)}'
+}
+
+function decimal2semver() {
+  #input: 2003004
+  # output: 2.3.4
+  echo "$1" |
+    awk -F. '{print ($1/1000000)%1000,($1/1000)%1000,$1%1000}'
 }
 
 #####################################################################
@@ -285,12 +326,12 @@ function IO:initialize() {
 
 function IO:print() {
   ((quiet)) && true || printf '%b\n' "$*"
-  }
+}
 
 function IO:debug() {
   ((verbose)) && IO:print "${txtInfo}# $* ${txtReset}" >&2
   true
-  }
+}
 
 function IO:die() {
   IO:print "${txtError}${char_fail} $script_basename${txtReset}: $*" >&2
@@ -300,7 +341,7 @@ function IO:die() {
 
 function IO:alert() {
   IO:print "${txtWarn}${char_alert}${txtReset}: ${txtUnderline}$*${txtReset}" >&2
-  }
+}
 
 function IO:success() {
   IO:print "${txtInfo}${char_succes}${txtReset}  ${txtBold}$*${txtReset}"
@@ -342,19 +383,19 @@ function IO:question() {
 }
 
 function IO:log() {
-  [[ -n "${log_file:-}" ]] && echo "$(date '+%H:%M:%S') | $*" >> "$log_file"
-  }
+  [[ -n "${log_file:-}" ]] && echo "$(date '+%H:%M:%S') | $*" >>"$log_file"
+}
 
 function Tool:calc() {
   awk "BEGIN {print $*} ; "
-  }
+}
 
 function Tool:time() {
   if [[ $(command -v perl) ]]; then
     perl -MTime::HiRes=time -e 'printf "%.3f\n", time'
   elif [[ $(command -v php) ]]; then
     php -r 'echo microtime(true) . "\n"; '
-  elif [[ $(command -v python) ]] ; then
+  elif [[ $(command -v python) ]]; then
     python -c "import time; print(time.time()) "
   else
     date "+%s" | awk '{printf("%.3f\n",$1)}'
@@ -364,37 +405,37 @@ function Tool:time() {
 ### string processing
 
 function Str:trim() {
-    local var="$*"
-    # remove leading whitespace characters
-    var="${var#"${var%%[![:space:]]*}"}"
-    # remove trailing whitespace characters
-    var="${var%"${var##*[![:space:]]}"}"
-    printf '%s' "$var"
+  local var="$*"
+  # remove leading whitespace characters
+  var="${var#"${var%%[![:space:]]*}"}"
+  # remove trailing whitespace characters
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
 }
 
 function Str:lower() {
-  if [[ -n "$1" ]] ; then
+  if [[ -n "$1" ]]; then
     local input="$*"
     echo "${input,,}"
   else
     awk '{print tolower($0)}'
   fi
-  }
+}
 
 function Str:upper() {
-  if [[ -n "$1" ]] ; then
+  if [[ -n "$1" ]]; then
     local input="$*"
     echo "${input^^}"
   else
     awk '{print toupper($0)}'
   fi
-  }
+}
 
 function Str:ascii() {
   # remove all characters with accents/diacritics to latin alphabet
   # shellcheck disable=SC2020
   sed 'y/àáâäæãåāǎçćčèéêëēėęěîïííīįìǐłñńôöòóœøōǒõßśšûüǔùǖǘǚǜúūÿžźżÀÁÂÄÆÃÅĀǍÇĆČÈÉÊËĒĖĘĚÎÏÍÍĪĮÌǏŁÑŃÔÖÒÓŒØŌǑÕẞŚŠÛÜǓÙǕǗǙǛÚŪŸŽŹŻ/aaaaaaaaaccceeeeeeeeiiiiiiiilnnooooooooosssuuuuuuuuuuyzzzAAAAAAAAACCCEEEEEEEEIIIIIIIILNNOOOOOOOOOSSSUUUUUUUUUUYZZZ/'
-  }
+}
 
 function Str:slugify() {
   # Str:slugify <input> <separator>
@@ -402,7 +443,7 @@ function Str:slugify() {
   # Str:slugify "Jack, Jill & Clémence LTD" "_"  => jack_jill_clemence_ltd
   separator="${2:-}"
   [[ -z "$separator" ]] && separator="-"
-    Str:lower "$1" |
+  Str:lower "$1" |
     Str:ascii |
     awk '{
           gsub(/[\[\]@#$%^&*;,.:()<>!?\/+=_]/," ",$0);
@@ -445,7 +486,6 @@ function Str:digest() {
   fi
 }
 
-
 trap "IO:die \"ERROR \$? after \$SECONDS seconds \n\
 \${error_prefix} last command : '\$BASH_COMMAND' \" \
 \$(< \$script_install_path awk -v lineno=\$LINENO \
@@ -453,7 +493,7 @@ trap "IO:die \"ERROR \$? after \$SECONDS seconds \n\
 # cf https://askubuntu.com/questions/513932/what-is-the-bash-command-variable-good-for
 
 Script:exit() {
-  for temp_file in "${temp_files[@]-}" ; do
+  for temp_file in "${temp_files[@]-}"; do
     [[ -f "$temp_file" ]] && (
       IO:debug "Delete temp file [$temp_file]"
       rm -f "$temp_file"
@@ -471,7 +511,8 @@ Script:check_version() {
     if [[ -d .git ]]; then
       local remote
       remote="$(git remote -v | grep fetch | awk 'NR == 1 {print $2}')"
-      IO:progress "Check for latest version - $remote"
+      IO:success "Remote: $remote"
+      IO:progress "Check for latest version"
       git remote update &>/dev/null
       if [[ $(git rev-list --count "HEAD...HEAD@{upstream}" 2>/dev/null) -gt 0 ]]; then
         IO:print "There is a more recent update of this script - run <<$script_prefix update>> to update"
@@ -591,10 +632,10 @@ Script:check() {
 }
 
 Option:usage() {
-  IO:print "Program : ${txtInfo}$script_basename${txtReset}  by ${txtWarn}$script_author${txtReset}"
+  IO:print "Program : ${txtInfo}$script_basename${txtReset} by ${txtWarn}$script_author${txtReset}"
   IO:print "Version : ${txtInfo}v$script_version${txtReset} (${txtWarn}$script_modified${txtReset})"
   IO:print "Purpose : ${txtInfo}php artisan replacement${txtReset}"
-  echo -n  "Usage   : $script_basename"
+  echo -n "Usage   : $script_basename"
   Option:config |
     awk '
   BEGIN { FS="|"; OFS=" "; oneline="" ; fulltext="Flags, options and parameters:"}
@@ -680,6 +721,7 @@ function Option:has_single() { Option:config | grep 'param|1|' >/dev/null; }
 function Option:has_choice() { Option:config | grep 'choice|1' >/dev/null; }
 function Option:has_optional() { Option:config | grep 'param|?|' >/dev/null; }
 function Option:has_multi() { Option:config | grep 'param|n|' >/dev/null; }
+function Option:has_any() { Option:config | grep 'param|*|' >/dev/null; }
 
 function Option:parse() {
   if [[ $# -eq 0 ]]; then
@@ -736,29 +778,29 @@ function Option:parse() {
 
   ) && Script:exit
 
-    local option_list
-    local option_count
-    local choices
-    local single_params
+  local option_list
+  local option_count
+  local choices
+  local single_params
   ## then run through the given parameters
   if Option:has_choice; then
     choices=$(Option:config | awk -F"|" '
       $1 == "choice" && $2 == 1 {print $3}
       ')
-    option_list=$(<<< "$choices" xargs)
-    option_count=$(<<< "$choices" wc -w | xargs)
+    option_list=$(xargs <<<"$choices")
+    option_count=$(wc <<<"$choices" -w | xargs)
     IO:debug "$config_icon Expect : $option_count choice(s): $option_list"
     [[ $# -eq 0 ]] && IO:die "need the choice(s) [$option_list]"
 
-  local choices_list
-  local valid_choice
+    local choices_list
+    local valid_choice
     for param in $choices; do
       [[ $# -eq 0 ]] && IO:die "need choice [$param]"
-      [[ -z "$1" ]]  && IO:die "need choice [$param]"
+      [[ -z "$1" ]] && IO:die "need choice [$param]"
       IO:debug "$config_icon Assign : $param=$1"
       # check if choice is in list
-      choices_list=$(Option:config | awk -F"|" -v choice="$param"  '$1 == "choice" && $3 = choice {print $5}')
-      valid_choice=$(<<< "$choices_list" tr "," "\n" | grep "$1")
+      choices_list=$(Option:config | awk -F"|" -v choice="$param" '$1 == "choice" && $3 = choice {print $5}')
+      valid_choice=$(tr <<<"$choices_list" "," "\n" | grep "$1")
       [[ -z "$valid_choice" ]] && IO:die "choice [$1] is not valid, should be in list [$choices_list]"
 
       eval "$param=\"$1\""
@@ -774,8 +816,8 @@ function Option:parse() {
     single_params=$(Option:config | awk -F"|" '
       $1 == "param" && $2 == 1 {print $3}
       ')
-    option_list=$(<<< "$single_params" xargs)
-    option_count=$(<<< "$single_params" wc -w | xargs)
+    option_list=$(xargs <<<"$single_params")
+    option_count=$(wc <<<"$single_params" -w | xargs)
     IO:debug "$config_icon Expect : $option_count single parameter(s): $option_list"
     [[ $# -eq 0 ]] && IO:die "need the parameter(s) [$option_list]"
 
@@ -796,7 +838,7 @@ function Option:parse() {
     local optional_params
     local optional_count
     optional_params=$(Option:config | grep 'param|?|' | cut -d'|' -f3)
-    optional_count=$(<<< "$optional_params" wc -w | xargs)
+    optional_count=$(wc <<<"$optional_params" -w | xargs)
     IO:debug "$config_icon Expect : $optional_count optional parameter(s): $(echo "$optional_params" | xargs)"
 
     for param in $optional_params; do
@@ -808,6 +850,15 @@ function Option:parse() {
     IO:debug "$config_icon No optional params to process"
     optional_params=""
     optional_count=0
+  fi
+
+  if Option:has_any; then
+    IO:debug "Process: all the rest of the parameters"
+    local multi_count
+    local multi_param
+    multi_param=$(Option:config | grep 'param|\*|' | cut -d'|' -f3)
+    eval "$multi_param=( $* )"
+    shift $#
   fi
 
   if Option:has_multi; then
@@ -896,38 +947,37 @@ function Os:follow_link() {
   Os:follow_link "$link_folder/$link_name"
 }
 
-function Os:notify(){
+function Os:notify() {
   # cf https://levelup.gitconnected.com/5-modern-bash-scripting-techniques-that-only-a-few-programmers-know-4abb58ddadad
   local message="$1"
   local source="${2:-$script_basename}"
 
-  [[ -n $(command -v notify-send) ]] && notify-send "$source" "$message" # for Linux
+  [[ -n $(command -v notify-send) ]] && notify-send "$source" "$message"                                      # for Linux
   [[ -n $(command -v osascript) ]] && osascript -e "display notification \"$message\" with title \"$source\"" # for MacOS
 }
 
-function Os:busy(){
+function Os:busy() {
   # show spinner as long as process $pid is running
-    local pid="$1"
-    local message="${2:-}"
-    local frames=( "|" "/" "-" "\\" )
-    (
-      while kill -0 "$pid" &> /dev/null;
-      do
-          for frame in "${frames[@]}";
-          do
-              printf "\r[ $frame ] %s..." "$message"
-              sleep 0.5
-          done
+  local pid="$1"
+  local message="${2:-}"
+  local frames=("|" "/" "-" "\\")
+  (
+    while kill -0 "$pid" &>/dev/null; do
+      for frame in "${frames[@]}"; do
+        printf "\r[ $frame ] %s..." "$message"
+        sleep 0.5
       done
-      printf "\n"
-    )
+    done
+    printf "\n"
+  )
 }
 
-function Os:beep(){
+function Os:beep() {
   local type="${1=-info}"
   case $type in
   *)
     tput bel
+    ;;
   esac
 }
 
@@ -989,17 +1039,17 @@ function Script:meta() {
       # Synology, QNAP,
       os_name="Linux"
     fi
-    [[ -x /bin/apt-cyg ]]    && install_package="apt-cyg install"     # Cygwin
-    [[ -x /bin/dpkg ]]       && install_package="dpkg -i"             # Synology
-    [[ -x /opt/bin/ipkg ]]   && install_package="ipkg install"        # Synology
-    [[ -x /usr/sbin/pkg ]]   && install_package="pkg install"         # BSD
-    [[ -x /usr/bin/pacman ]] && install_package="pacman -S"           # Arch Linux
-    [[ -x /usr/bin/zypper ]] && install_package="zypper install"      # Suse Linux
-    [[ -x /usr/bin/emerge ]] && install_package="emerge"              # Gentoo
-    [[ -x /usr/bin/yum ]]    && install_package="yum install"         # RedHat RHEL/CentOS/Fedora
-    [[ -x /usr/bin/apk ]]    && install_package="apk add"             # Alpine
-    [[ -x /usr/bin/apt-get ]] && install_package="apt-get install"    # Debian
-    [[ -x /usr/bin/apt ]]    && install_package="apt install"         # Ubuntu
+    [[ -x /bin/apt-cyg ]] && install_package="apt-cyg install"     # Cygwin
+    [[ -x /bin/dpkg ]] && install_package="dpkg -i"                # Synology
+    [[ -x /opt/bin/ipkg ]] && install_package="ipkg install"       # Synology
+    [[ -x /usr/sbin/pkg ]] && install_package="pkg install"        # BSD
+    [[ -x /usr/bin/pacman ]] && install_package="pacman -S"        # Arch Linux
+    [[ -x /usr/bin/zypper ]] && install_package="zypper install"   # Suse Linux
+    [[ -x /usr/bin/emerge ]] && install_package="emerge"           # Gentoo
+    [[ -x /usr/bin/yum ]] && install_package="yum install"         # RedHat RHEL/CentOS/Fedora
+    [[ -x /usr/bin/apk ]] && install_package="apk add"             # Alpine
+    [[ -x /usr/bin/apt-get ]] && install_package="apt-get install" # Debian
+    [[ -x /usr/bin/apt ]] && install_package="apt install"         # Ubuntu
     ;;
 
   esac
@@ -1045,7 +1095,7 @@ function Script:initialize() {
   fi
 }
 
-function Os:tempfile(){
+function Os:tempfile() {
   local extension=${1:-txt}
   local file="${tmp_dir:-/tmp}/$execution_day.$RANDOM.$extension"
   IO:debug "$config_icon tmp_file: $file"
@@ -1062,7 +1112,7 @@ function Os:import_env() {
     "./.env"
     "./.$script_prefix.env"
     "./$script_prefix.env"
-    )
+  )
 
   for env_file in "${env_files[@]}"; do
     if [[ -f "$env_file" ]]; then
@@ -1101,20 +1151,20 @@ function Os:clean_env() {
   echo "$output"
 }
 
-IO:initialize  # output settings
-Script:meta # find installation folder
+IO:initialize # output settings
+Script:meta   # find installation folder
 
-[[ $run_as_root == 1 ]]  && [[ $UID -ne 0 ]] && IO:die "user is $USER, MUST be root to run [$script_basename]"
+[[ $run_as_root == 1 ]] && [[ $UID -ne 0 ]] && IO:die "user is $USER, MUST be root to run [$script_basename]"
 [[ $run_as_root == -1 ]] && [[ $UID -eq 0 ]] && IO:die "user is $USER, CANNOT be root to run [$script_basename]"
 
-Option:initialize      # set default values for flags & options
-Os:import_env # overwrite with .env if any
+Option:initialize # set default values for flags & options
+Os:import_env     # overwrite with .env if any
 
 if [[ $sourced -eq 0 ]]; then
-  Option:parse "$@"       # overwrite with specified options if any
-  Script:initialize       # clean up folders
-  Script:main "$@"        # run Script:main program
-  Script:exit             # exit and clean up
+  Option:parse "$@" # overwrite with specified options if any
+  Script:initialize # clean up folders
+  Script:main "$@"  # run Script:main program
+  Script:exit       # exit and clean up
 else
   # just disable the trap, don't execute Script:main
   trap - INT TERM EXIT
