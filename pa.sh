@@ -127,7 +127,7 @@ function choose_php() {
         # ^1.2.3 is equivalent to >=1.2.3 <2.0.0
         min_version=${spec:1}
         min_decimal=$(semver2decimal "$min_version")
-        max_decimal=$((($min_decimal / 1000000 + 1) * 1000000 - 1))
+        max_decimal=$(( (min_decimal / 1000000 + 1) * 1000000 - 1))
         IO:debug "Allowed: $spec : $min_decimal - $max_decimal"
         filter_allowed_phps "$min_decimal" "$max_decimal"
         ;;
@@ -137,7 +137,7 @@ function choose_php() {
         # ~1.2 is equivalent to >=1.2 <2.0.0, while ~1.2.3 is equivalent to >=1.2.3 <1.3.0
         min_version=${spec:1}
         min_decimal=$(semver2decimal "$min_version")
-        if [[ -z $(echo $min_version | cut -d. -f3) ]]; then
+        if [[ -z $(echo "$min_version" | cut -d. -f3) ]]; then
           max_decimal=$(( (min_decimal / 1000000 + 1) * 1000000 -  1))
         else
           max_decimal=$(( (min_decimal / 1000 + 1) * 1000 - 1))
@@ -150,7 +150,7 @@ function choose_php() {
         # https://getcomposer.org/doc/articles/versions.md#exact-version-constraint
         min_version=${spec}
         min_decimal=$(semver2decimal "$min_version")
-        if [[ -z $(echo $min_version | cut -d. -f3) ]]; then
+        if [[ -z $(echo "$min_version" | cut -d. -f3) ]]; then
           max_decimal=$(( (min_decimal / 1000 + 1) * 1000))
         else
           max_decimal="$(( min_decimal +  1))"
