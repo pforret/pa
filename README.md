@@ -57,6 +57,12 @@ $ pa make:model ModelName
 # run `composer require` author/package, with the correct PHP version
 > pa co require author/package
 
+# run 'pa pick' to see what PHP version would be chosen in this folder
+# will parse PHP requirements from composer.json like "^8.0" or "^7.4|^8.0" 
+# and use the lowest version of PHP that is installed and qualifies
+$ pa pick
+/usr/bin/php7.4
+
 # show all available PHP versions on this machine
 > pa list
 # Installed on this machine [name]:

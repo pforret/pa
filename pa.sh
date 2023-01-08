@@ -52,7 +52,6 @@ Script:main() {
     #TIP: use «$script_prefix pick» to show the best PHP version for this machine/repo
     #TIP:> $script_prefix pick
     choose_php
-    # will parse PHP requirements like "^8.0" or "^7.4|^8.0" and use the lowest version of PHP that is installed and qualifies
     ;;
 
   c | co | com | comp | composer)
