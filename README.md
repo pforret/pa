@@ -15,10 +15,10 @@ Run `php artisan` and `composer` with the correct PHP version for the project, d
 ## 🔥 Usage
 
 ```
-Program : pa  by peter@forret.com
-Version : v0.0.4 (2023-01-03 17:07)
+Program : pa by peter@forret.com
+Version : v0.1.1 (2023-01-08 21:29)
 Purpose : php artisan replacement
-Usage   : pa [-h] [-q] [-v] [-f] [-l <log_dir>] [-t <tmp_dir>] [-P <OVERRIDE_PHP>] <action> <input?>
+Usage   : pa [-h] [-q] [-v] [-f] [-l <log_dir>] [-t <tmp_dir>] [-P <OVERRIDE_PHP>] <action>
 Flags, options and parameters:
     -h|--help        : [flag] show usage [default: off]
     -q|--quiet       : [flag] no output [default: off]
@@ -27,36 +27,41 @@ Flags, options and parameters:
     -l|--log_dir <?> : [option] folder for log files   [default: /home/pforret/log/pa]
     -t|--tmp_dir <?> : [option] folder for temp files  [default: /tmp/pa]
     -P|--OVERRIDE_PHP <?>: [option] override PHP binary to use (e.g. php8.1)
-    <action>         : [parameter] action to perform
-    <input>          : [parameter] input file/text (optional)
-
+    <action>         : [parameter] action to perform (see pa -h for details)
+✅  Remote: gh_pforret:pforret/pa.git
+                                  
 ### TIPS & EXAMPLES
-* use pa versions to show the available PHP versions on this machine
-  pa versions
-* use pa install to run 'php artisan' with the optimal PHP version
-  pa run make:model -v Test
-* >>> bash script created with pforret/bashew
+* use pa list to show the available PHP versions on this machine
+  pa list
+* use pa pick to show the best PHP version for this machine/repo
+  pa pick
+* use pa co to run 'composer' with the optimal PHP version
+  pa co require author/package
+  pa co install
 ```
 
 ## ⚡️ Examples
 
 ```bash
 # run `php artisan`, but with the correct PHP version for this project
+$ pa route:list
 $ pa make:model ModelName
 
 # run `composer install`, with the correct PHP version
-> pa install
-
-# run `composer update`, with the correct PHP version
-> pa update
+> pa c install
+> pa co install
+> pa com install
+> pa comp install
+> pa composer install
 
 # run `composer require` author/package, with the correct PHP version
-> pa require author/package
+> pa co require author/package
 
 # show all available PHP versions on this machine
-> pa versions
-# Installed on this machine BFLD-PFORRET17:
+> pa list
+# Installed on this machine [name]:
 # - - - - - - - - - - - - - - - - - - - - -
+# /usr/bin/php              8.0.26          ✅  Supported until 2023-11-26
 # /usr/bin/php8.2           8.2.0           ✅  Supported until 2025-12-08
 # /usr/bin/php8.1           8.1.13          ✅  Supported until 2024-11-25
 # /usr/bin/php8.0           8.0.26          ✅  Supported until 2023-11-26
