@@ -62,11 +62,56 @@ Script:main() {
     COMPBIN=$(command -v composer)
     IO:debug "Using PHP: $PHP_BIN // Composer $COMPBIN"
     IO:debug "$PHP_BIN $COMPBIN $(echo "${params:-}" | xargs)"
-    if [[ -n "${params:-}" ]] ; then
+    if [[ -n "${params:-}" ]]; then
       "$PHP_BIN" "$COMPBIN" "${params}"
     else
       "$PHP_BIN" "$COMPBIN"
     fi
+    ;;
+
+  s | serve)
+    #TIP: use «$script_prefix serve» to run 'php artisan serve' with dedicated port
+    #TIP:> $script_prefix co serve
+    Os:require sha256sum
+    PHP_BIN="$(choose_php)"
+    local host=localhost
+    local port
+    port="8$(pwd | sha256sum | sed 's/[^0-9]//g' | cut -c1-3)"
+    if [[ -f .env ]]; then
+      local app_url
+      local host_port
+      # APP_URL=http://laravelserve:8080
+      app_url=$(grep "APP_URL=" .env | cut -d= -f2)
+      if [[ -n "$app_url" ]]; then
+        host_port=$(echo "$app_url" | cut -d/ -f3)
+        host=$(echo "$host_port" | cut -d: -f1)
+        [[ "$host" != "$host_port" ]] && port=$(echo "$host_port" | cut -d: -f2)
+      fi
+    fi
+    IO:debug "Using host: $host"
+    IO:debug "Using port: $port"
+
+    local url="http://$host:$port"
+    local delay=5
+
+    echo "--------------------------------"
+    echo "open $url in $delay seconds"
+    echo "press CTRL-C to stop this server"
+    echo "--------------------------------"
+
+    local today
+    today=$(date "+%Y-%m-%d")
+    local log_file="$log_dir/php.$today.log"
+    (sleep "$delay" && explorer.exe "$url") &
+    if [[ -f "artisan" ]] ; then
+      IO:debug "Detected Laravel - run '$PHP_BIN artisan serve'"
+      "$PHP_BIN" artisan serve -q --port="$port" --host="$host"
+    else
+      IO:debug "No framework detected - run '$PHP_BIN -S'"
+      IO:debug "Log file: $log_file"
+      "$PHP_BIN" -S "$host:$port" 2>> "$log_file"
+    fi
+
     ;;
 
   *)
@@ -128,7 +173,7 @@ function choose_php() {
         # ^1.2.3 is equivalent to >=1.2.3 <2.0.0
         min_version=${spec:1}
         min_decimal=$(semver2decimal "$min_version")
-        max_decimal=$(( (min_decimal / 1000000 + 1) * 1000000 - 1))
+        max_decimal=$(((min_decimal / 1000000 + 1) * 1000000 - 1))
         IO:debug "Allowed: $spec : $min_decimal - $max_decimal"
         filter_allowed_phps "$min_decimal" "$max_decimal"
         ;;
@@ -139,9 +184,9 @@ function choose_php() {
         min_version=${spec:1}
         min_decimal=$(semver2decimal "$min_version")
         if [[ -z $(echo "$min_version" | cut -d. -f3) ]]; then
-          max_decimal=$(( (min_decimal / 1000000 + 1) * 1000000 -  1))
+          max_decimal=$(((min_decimal / 1000000 + 1) * 1000000 - 1))
         else
-          max_decimal=$(( (min_decimal / 1000 + 1) * 1000 - 1))
+          max_decimal=$(((min_decimal / 1000 + 1) * 1000 - 1))
         fi
         IO:debug "Allowed: $spec : $min_decimal - $max_decimal"
         filter_allowed_phps "$min_decimal" "$max_decimal"
@@ -152,16 +197,16 @@ function choose_php() {
         min_version=${spec}
         min_decimal=$(semver2decimal "$min_version")
         if [[ -z $(echo "$min_version" | cut -d. -f3) ]]; then
-          max_decimal=$(( (min_decimal / 1000 + 1) * 1000))
+          max_decimal=$(((min_decimal / 1000 + 1) * 1000))
         else
-          max_decimal="$(( min_decimal +  1))"
+          max_decimal="$((min_decimal + 1))"
         fi
         IO:debug "allowed: $spec : $min_decimal - $max_decimal"
-         filter_allowed_phps "$min_decimal" "$max_decimal"
-       ;;
+        filter_allowed_phps "$min_decimal" "$max_decimal"
+        ;;
       esac
-    done \
-    | sort -u | head -1 | cut -d';' -f2
+    done |
+    sort -u | head -1 | cut -d';' -f2
 }
 
 function list_installed_versions() {
@@ -193,17 +238,17 @@ function detect_installed_php_binaries() {
   cat "$cache_versions"
 }
 
-function filter_allowed_phps(){
+function filter_allowed_phps() {
   local minimum="$1"
   local maximum="$2"
-  detect_installed_php_binaries \
-  | while IFS=";" read -r php_path detect_php_version ; do
+  detect_installed_php_binaries |
+    while IFS=";" read -r php_path detect_php_version; do
       dec_version=$(semver2decimal "$detect_php_version")
       [[ "$dec_version" -lt "$minimum" ]] && continue
       [[ "$dec_version" -ge "$maximum" ]] && continue
       echo "$dec_version;$php_path"
-    done \
-  | sort -u
+    done |
+    sort -u
 }
 
 function version_end_of_support() {
