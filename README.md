@@ -16,7 +16,7 @@ Run `php artisan` and `composer` with the correct PHP version for the project, d
 
 ```
 Program : pa by peter@forret.com
-Version : v0.1.1 (2023-01-08 21:29)
+Version : v0.2.0 (2025-03-20 09:22)
 Purpose : php artisan replacement
 Usage   : pa [-h] [-q] [-v] [-f] [-l <log_dir>] [-t <tmp_dir>] [-P <OVERRIDE_PHP>] <action>
 Flags, options and parameters:
@@ -24,7 +24,7 @@ Flags, options and parameters:
     -q|--quiet       : [flag] no output [default: off]
     -v|--verbose     : [flag] also show debug messages [default: off]
     -f|--force       : [flag] do not ask for confirmation (always yes) [default: off]
-    -l|--log_dir <?> : [option] folder for log files   [default: /home/pforret/log/pa]
+    -l|--log_dir <?> : [option] folder for log files   [default: /home/forretp/log/pa]
     -t|--tmp_dir <?> : [option] folder for temp files  [default: /tmp/pa]
     -P|--OVERRIDE_PHP <?>: [option] override PHP binary to use (e.g. php8.1)
     <action>         : [parameter] action to perform (see pa -h for details)
@@ -38,6 +38,10 @@ Flags, options and parameters:
 * use pa co to run 'composer' with the optimal PHP version
   pa co require author/package
   pa co install
+* use pa serve to run 'php artisan serve' with unique port per project
+  pa serve
+ 
+>>> bash script created with pforret/bashew
 ```
 
 ## ⚡️ Examples
@@ -62,6 +66,16 @@ $ pa make:model ModelName
 # and use the lowest version of PHP that is installed and qualifies
 $ pa pick
 /usr/bin/php7.4
+
+# run 'pa serve' to start 'php artisan serve' command with right PHP version
+# and a specific pseudo-random port per project (derived from folder name)
+# or with the .env settings, if any
+# e.g. APP_URL=http://project.test:8010
+$ pa serve
+--------------------------------
+open http://project.test:8010 in 5 seconds
+press CTRL-C to stop this server
+--------------------------------
 
 # show all available PHP versions on this machine
 > pa list

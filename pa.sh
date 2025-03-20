@@ -70,8 +70,8 @@ Script:main() {
     ;;
 
   s | serve)
-    #TIP: use «$script_prefix serve» to run 'php artisan serve' with dedicated port
-    #TIP:> $script_prefix co serve
+    #TIP: use «$script_prefix serve» to run 'php artisan serve' with unique port per project
+    #TIP:> $script_prefix serve
     Os:require sha256sum
     PHP_BIN="$(choose_php)"
     local host=localhost
