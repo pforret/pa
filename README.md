@@ -28,7 +28,6 @@ Flags, options and parameters:
     -t|--tmp_dir <?> : [option] folder for temp files  [default: /tmp/pa]
     -P|--OVERRIDE_PHP <?>: [option] override PHP binary to use (e.g. php8.1)
     <action>         : [parameter] action to perform (see pa -h for details)
-✅  Remote: gh_pforret:pforret/pa.git
                                   
 ### TIPS & EXAMPLES
 * use pa list to show the available PHP versions on this machine
@@ -104,4 +103,4 @@ or with `git`
 
 * script created with [bashew](https://github.com/pforret/bashew)
 
-&copy; 2022 Peter Forret
+&copy; 2022-2025 Peter Forret

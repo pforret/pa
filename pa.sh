@@ -1131,10 +1131,11 @@ function Script:meta() {
 function Script:initialize() {
   log_file=""
   if [[ -n "${tmp_dir:-}" ]]; then
-    # clean up TMP folder after 1 day
+    # clean up tmp_dir folder after 1 day
     Os:folder "$tmp_dir" 1
   fi
   if [[ -n "${log_dir:-}" ]]; then
+    # clean up log_dir folder after 30 days
     Os:folder "$log_dir" 30
     log_file="$log_dir/$script_prefix.$execution_day.log"
     IO:debug "$config_icon log_file: $log_file"
