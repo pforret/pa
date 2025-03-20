@@ -31,7 +31,7 @@ Please make sure to read the relevant section before making your contribution! I
 
 If you have a question about this project, how to use it, or just need clarification about something:
 
-* Open an Issue at https://github.com/pforret/bashew/issues
+* Open an Issue at https://github.com/pforret/pa/issues
 * Provide as much context as you can about what you're running into.
 * Provide project and platform versions (bash, basher, etc), depending on what seems relevant. If not, please be ready to provide that information if maintainers ask for it.
 
@@ -46,7 +46,7 @@ Once it's filed:
 
 If you run into an error or bug with the project:
 
-* Open an Issue at https://github.com/pforret/bashew/issues
+* Open an Issue at https://github.com/pforret/pa/issues
 * Include *reproduction steps* that someone else can follow to recreate the bug or error on their own.
 * Provide project and platform versions (OS, bash, basher, etc), depending on what seems relevant. If not, please be ready to provide that information if maintainers ask for it.
 
@@ -62,7 +62,7 @@ Once it's filed:
 
 If the project doesn't do something you need or want it to do:
 
-* Open an Issue at https://github.com/pforret/bashew/issues
+* Open an Issue at https://github.com/pforret/pa/issues
 * Provide as much context as you can about what you're running into.
 * Please be clear about why existing features and alternatives would not work for you.
 
@@ -102,7 +102,7 @@ To contribute documentation:
 * Make sure your changes are formatted correctly and consistently with the rest of the documentation.
 * Re-read what you wrote, and run a spellchecker on it to make sure you didn't miss anything.
 * Write clear, concise commit message(s) using [conventional-changelog format](https://github.com/conventional-changelog/conventional-changelog-angular/blob/master/convention.md). Documentation commits should use `docs(<component>): <message>`.
-* Go to https://github.com/pforret/bashew/pulls and open a new pull request with your changes.
+* Go to https://github.com/pforret/pa/pulls and open a new pull request with your changes.
 * If your PR is connected to an open issue, add a line in your PR's description that says `Fixes: #123`, where `#123` is the number of the issue you're fixing.
 
 Once you've filed the PR:

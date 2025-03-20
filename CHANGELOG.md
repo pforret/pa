@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 - work on new features
 
+## [0.2.2] - 2025-03-20
+### Added/changed
+- MOD: README.md pa.sh
+
 ## [0.0.1] - 2022-09-26
 ### Added
 - create pa with [pforret/bashew](https://github.com/pforret/bashew)
